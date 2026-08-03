@@ -6,4 +6,4 @@ package qrcertBlueprint where
 
 @[default_target]
 lean_lib QRCertBlueprint where
-  roots := #[`QRCertBlueprint]
+  roots := #[`QRCertBlueprint, `QRCertWaveletFingerprint]
