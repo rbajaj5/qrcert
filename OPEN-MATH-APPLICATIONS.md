@@ -97,6 +97,39 @@ This does **not** by itself establish differential privacy. The dynamic
 program, the DP privacy definition, ZK witness hiding, and information leaked
 by public optimum/gap/radius values are separate concerns.
 
+## CSP and polymorphism guidance
+
+Zarathustra Brady's
+[*Notes on CSPs and Polymorphisms*](https://doi.org/10.48550/arXiv.2210.07383)
+suggest a useful producer-side dispatch rather than a new trust assumption.
+The notes separate CSP templates amenable to local consistency, linear or
+semidefinite relaxations, and compact representations from templates that
+retain hard search behavior.
+
+A symmetric Ramsey lower-bound instance is itself a Boolean CSP: one variable
+chooses the colour of each edge, and each `k`-vertex set contributes a
+constraint excluding the all-red and all-blue assignments. This perspective
+can guide future search engines:
+
+- bounded-width templates can emit a local-consistency elimination trace;
+- affine fragments can emit exact linear-algebra certificates;
+- few-subpowers fragments can use compact relation representations; and
+- hard residual instances can still use SAT, branch-and-bound, or GPU batch
+  search.
+
+The Lean boundary does not change. A satisfying assignment is easy to check,
+but an LP/SDP fractional solution or an approximately satisfied CSP is not an
+exact Ramsey certificate. An upper bound or unsatisfiability claim needs a
+complete checked refutation or exhaustive-coverage certificate. The notes'
+"Ramsey-theoretic upgrade" concerns solvability inside bounded-width algebraic
+templates; it does not improve the numerical bound on `R(5,5)` by itself.
+
+The inspected 2 August 2026 PDF is a 583-page evolving set of seminar notes and
+explicitly describes itself as unfinished, so the repository uses it as
+algorithmic guidance rather than a frozen protocol dependency:
+
+- [current PDF supplied for this assessment](https://notzeb.com/csp-notes.pdf)
+
 ## Boundary
 
 This case study demonstrates Curry--Howard plus proof by reflection:

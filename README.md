@@ -1,6 +1,15 @@
-# QRCert Lean blueprint and reflected certificates
+# QRCert Lean decoder, fingerprints, and reflected certificates
 
-This is a compiling Lean 4 proof artifact for the first QRCert parser/cost milestone. It uses a deliberately tiny fixed-byte circuit format:
+This is a compiling Lean 4 proof artifact for three deliberately narrow QRCert
+milestones:
+
+1. a checked decoder and finite-word cost model for a tiny circuit format; and
+2. exact integer Haar and Walsh--Hadamard transforms for structural circuit
+   fingerprints; and
+3. reflected resource and Ramsey certificates with an untrusted GPU search
+   boundary.
+
+The fixed-byte circuit format has:
 
 - header: one byte each for `nQubits` and `numOps`;
 - opcodes: `X`, `CX`, and `CCX` with one-byte operands;
@@ -8,7 +17,7 @@ This is a compiling Lean 4 proof artifact for the first QRCert parser/cost miles
 - `CX` operands and all three `CCX` operands must be distinct;
 - the declared operation count must consume the payload exactly.
 
-## Machine-checked results
+## Machine-checked decoder results
 
 `QRCertBlueprint.lean` proves, without `sorry`, `admit`, project axioms, `unsafe`, or `partial` definitions:
 
@@ -28,6 +37,39 @@ This is a compiling Lean 4 proof artifact for the first QRCert parser/cost miles
 Curry--Howard endpoint: if the Boolean resource-claim verifier accepts, Lean
 recovers a canonical decoded circuit, well-formedness, exact unbounded cost,
 and a successful agreeing finite-word cost computation.
+
+## Machine-checked transform results
+
+`QRCertWaveletFingerprint.lean` proves:
+
+- the integer Haar butterfly is exactly invertible;
+- a recursively indexed `Dyadic` trace has length `2^m` by construction;
+- the full lazy Haar coefficient tree reconstructs its input exactly and is
+  injective;
+- changing one dyadic child leaves the opposite child's detail subtree
+  bitwise unchanged;
+- four canonical opcode channels (`tag`, `arg1`, `arg2`, `arg3`) determine an
+  `X`/`CX`/`CCX` operation and every power-of-two operation block uniquely;
+- the three operand channels alone remain injective because their `-1`
+  sentinels distinguish gate arities, yielding a proved 25% channel reduction;
+- the integer Walsh--Hadamard transform is injective; and
+- its squared energy is multiplied by exactly `2^m` at depth `m`, the integral
+  form of the normalized transform's isometry law.
+
+These transforms are reversible structural representations. They are **not**
+cryptographic hashes, compression functions, or collision-resistant sketches.
+See [`FINGERPRINT-ROADMAP.md`](FINGERPRINT-ROADMAP.md) for the security boundary
+and the status of proposed Reed--Muller, polar, and LDPC layers.
+
+## Bounded coefficient optimization
+
+The optional experiment in [`experiments/`](experiments/) formulates lossy
+coordinate selection as a 0--1 mixed-integer covering problem. Its default
+four-qubit/four-operation run selects 6 of 32 coordinates while detecting all
+3,120 possible single-operation substitution classes in both the Haar and
+Walsh families. A second optimization finds an exact two-substitution collision
+for the documented baseline, sharply demonstrating why this remains a finite
+threat-model result rather than a cryptographic or universal collision theorem.
 
 ## Untrusted GPU, trusted Lean
 
@@ -63,10 +105,11 @@ lake build
 lake env lean -E warning QRCertAxiomAudit.lean
 ```
 
-The original blueprint was also compiled successfully with Lean `4.33.0-rc1`.
-`#print axioms` reports only Lean's standard `propext`, `Quot.sound`, and
-`Classical.choice` axioms across the expanded audited theorem set; there is no
-project-defined axiom. See `AXIOM-AUDIT.md` for the exact result. The unchanged
+The original decoder blueprint was also compiled successfully with Lean
+`4.33.0-rc1`. `#print axioms` reports only Lean's standard `propext`,
+`Quot.sound`, and `Classical.choice` axioms
+across the audited theorem set; there is no project-defined axiom. See
+`AXIOM-AUDIT.md` for the exact result. The unchanged
 `QRCertBlueprint.lean` SHA-256 is:
 
 ```text
@@ -84,4 +127,14 @@ This is a proof blueprint, not the completed QRCert system:
 - The committed 42-vertex Ramsey JSON is exactly checked by Python and CUDA,
   but is not yet parsed and evaluated end to end by Lean; the kernel-checked
   concrete example is the five-cycle.
-- Circuit permutation/unitary semantics, semantic certificates, hashing, the Rust/Charon/Aeneas bridge, rustc/RISC-V correspondence, SP1, and the ZK composition theorem remain separate obligations.
+- The transform input is a power-of-two operation block, not an arbitrary
+  decoded circuit; padding and domain separation remain design obligations.
+- Exact reconstruction disappears if coefficients are truncated. Any lossy
+  sketch needs a separate soundness statement and adversarial analysis.
+- Fixed-width `X`, `CX`, and `CCX` gates are permutations of basis states and
+  therefore unitary. A future register-allocation operation would instead be
+  modeled as an isometry into a larger state space; neither semantic layer is
+  implemented here.
+- Circuit semantics, semantic certificates, authenticated hashing, the
+  Rust/Charon/Aeneas bridge, rustc/RISC-V correspondence, SP1, and the ZK
+  composition theorem remain separate obligations.
