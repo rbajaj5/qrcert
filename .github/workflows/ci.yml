@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lean:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: leanprover/lean-action@v1
+        with:
+          build: true
+          build-args: --wfail
+      - name: Audit theorem dependencies
+        run: lake env lean -E warning QRCertAxiomAudit.lean
+      - name: Reject incomplete or unsafe Lean declarations
+        run: |
+          if rg -n --glob '*.lean' '\b(sorry|admit|unsafe|partial)\b|^\s*axiom\b' .; then
+            exit 1
+          fi
+
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Compile tools
+        run: python -m py_compile tools/ramsey_gpu.py tools/benchmark_ramsey.py
+      - name: Check reflected Ramsey examples on the exact CPU path
+        run: |
+          python tools/ramsey_gpu.py --self-test --device cpu --output /tmp/c5.json
+          python tools/ramsey_gpu.py --check /tmp/c5.json --device cpu --output /tmp/c5-roundtrip.json
+          cmp /tmp/c5.json /tmp/c5-roundtrip.json
+          python tools/ramsey_gpu.py --check examples/r55-42.json --device cpu --output /tmp/r55.json
+          cmp examples/r55-42.json /tmp/r55.json
