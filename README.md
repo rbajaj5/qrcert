@@ -43,6 +43,8 @@ The fixed-byte circuit format has:
   bitwise unchanged;
 - four canonical opcode channels (`tag`, `arg1`, `arg2`, `arg3`) determine an
   `X`/`CX`/`CCX` operation and every power-of-two operation block uniquely;
+- the three operand channels alone remain injective because their `-1`
+  sentinels distinguish gate arities, yielding a proved 25% channel reduction;
 - the integer Walsh--Hadamard transform is injective; and
 - its squared energy is multiplied by exactly `2^m` at depth `m`, the integral
   form of the normalized transform's isometry law.
@@ -51,6 +53,16 @@ These transforms are reversible structural representations. They are **not**
 cryptographic hashes, compression functions, or collision-resistant sketches.
 See [`FINGERPRINT-ROADMAP.md`](FINGERPRINT-ROADMAP.md) for the security boundary
 and the status of proposed Reed--Muller, polar, and LDPC layers.
+
+## Bounded coefficient optimization
+
+The optional experiment in [`experiments/`](experiments/) formulates lossy
+coordinate selection as a 0--1 mixed-integer covering problem. Its default
+four-qubit/four-operation run selects 6 of 32 coordinates while detecting all
+3,120 possible single-operation substitution classes in both the Haar and
+Walsh families. A second optimization finds an exact two-substitution collision
+for the documented baseline, sharply demonstrating why this remains a finite
+threat-model result rather than a cryptographic or universal collision theorem.
 
 ## Build and audit
 

@@ -360,6 +360,15 @@ theorem op_channels_injective
   cases left <;> cases right <;>
     simp_all [opTag, opArg1, opArg2, opArg3] <;> omega
 
+theorem op_arguments_injective
+    (left right : QRCert.Blueprint.Op)
+    (hArg1 : opArg1 left = opArg1 right)
+    (hArg2 : opArg2 left = opArg2 right)
+    (hArg3 : opArg3 left = opArg3 right) :
+    left = right := by
+  cases left <;> cases right <;>
+    simp_all [opArg1, opArg2, opArg3] <;> omega
+
 structure OpBlockFingerprint (m : Nat) where
   tag : Coefficients m
   arg1 : Coefficients m
@@ -410,6 +419,39 @@ theorem opBlock_channels_ext
           cases hRight
           rfl
 
+theorem opBlock_argument_channels_ext
+    (left right : Dyadic QRCert.Blueprint.Op m)
+    (hArg1 : Dyadic.map opArg1 left = Dyadic.map opArg1 right)
+    (hArg2 : Dyadic.map opArg2 left = Dyadic.map opArg2 right)
+    (hArg3 : Dyadic.map opArg3 left = Dyadic.map opArg3 right) :
+    left = right := by
+  induction left with
+  | leaf leftOp =>
+      cases right with
+      | leaf rightOp =>
+          simp only [Dyadic.map_leaf] at hArg1 hArg2 hArg3
+          injection hArg1 with hArg1Value
+          injection hArg2 with hArg2Value
+          injection hArg3 with hArg3Value
+          have hOp := op_arguments_injective leftOp rightOp
+            hArg1Value hArg2Value hArg3Value
+          cases hOp
+          rfl
+  | node leftLeft leftRight ihLeft ihRight =>
+      cases right with
+      | node rightLeft rightRight =>
+          simp only [Dyadic.map_node] at hArg1 hArg2 hArg3
+          injection hArg1 with _ hArg1Left hArg1Right
+          injection hArg2 with _ hArg2Left hArg2Right
+          injection hArg3 with _ hArg3Left hArg3Right
+          have hLeft : leftLeft = rightLeft :=
+            ihLeft rightLeft hArg1Left hArg2Left hArg3Left
+          have hRight : leftRight = rightRight :=
+            ihRight rightRight hArg1Right hArg2Right hArg3Right
+          cases hLeft
+          cases hRight
+          rfl
+
 theorem opBlockFingerprint_injective :
     Function.Injective (@opBlockFingerprint m) := by
   intro left right h
@@ -427,6 +469,37 @@ theorem opBlockFingerprint_injective :
     congrArg OpBlockFingerprint.arg3 h
   exact opBlock_channels_ext left right
     (forward_injective hTag)
+    (forward_injective hArg1)
+    (forward_injective hArg2)
+    (forward_injective hArg3)
+
+/-! The `-1` sentinels make the tag channel redundant for exact identity. -/
+
+structure CompactOpBlockFingerprint (m : Nat) where
+  arg1 : Coefficients m
+  arg2 : Coefficients m
+  arg3 : Coefficients m
+  deriving Repr, DecidableEq
+
+def compactOpBlockFingerprint
+    (block : Dyadic QRCert.Blueprint.Op m) : CompactOpBlockFingerprint m :=
+  { arg1 := forward (Dyadic.map opArg1 block)
+    arg2 := forward (Dyadic.map opArg2 block)
+    arg3 := forward (Dyadic.map opArg3 block) }
+
+theorem compactOpBlockFingerprint_injective :
+    Function.Injective (@compactOpBlockFingerprint m) := by
+  intro left right h
+  have hArg1 :
+      forward (Dyadic.map opArg1 left) = forward (Dyadic.map opArg1 right) :=
+    congrArg CompactOpBlockFingerprint.arg1 h
+  have hArg2 :
+      forward (Dyadic.map opArg2 left) = forward (Dyadic.map opArg2 right) :=
+    congrArg CompactOpBlockFingerprint.arg2 h
+  have hArg3 :
+      forward (Dyadic.map opArg3 left) = forward (Dyadic.map opArg3 right) :=
+    congrArg CompactOpBlockFingerprint.arg3 h
+  exact opBlock_argument_channels_ext left right
     (forward_injective hArg1)
     (forward_injective hArg2)
     (forward_injective hArg3)

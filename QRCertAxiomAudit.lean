@@ -27,3 +27,4 @@ separate from the library build so that audit output remains visible in CI.
 #print axioms QRCert.Wavelet.walshHadamard_injective
 #print axioms QRCert.Wavelet.walshHadamard_energy
 #print axioms QRCert.Wavelet.opBlockFingerprint_injective
+#print axioms QRCert.Wavelet.compactOpBlockFingerprint_injective

@@ -10,9 +10,10 @@ have been implemented.
 |---|---|---|
 | Checked fixed-byte decoder | Lean-checked | Refinement, well-formedness, exact consumption, canonicity, injectivity, and checked cost agreement. |
 | Integer Haar transform | Lean-checked | Exact reconstruction, injectivity, and dyadic sibling-locality. |
-| Four-channel operation trace | Lean-checked | The `tag` and three operand channels uniquely determine every power-of-two `X`/`CX`/`CCX` block. |
+| Operation trace | Lean-checked | Four channels are injective; the three operand channels alone are also injective, proving the tag channel redundant for exact identity. |
 | Integer Walsh--Hadamard transform | Lean-checked | Exact injectivity and energy scaling by `2^m`. |
-| Lossy coefficient selection | Not implemented | Requires an explicit distortion or soundness theorem. |
+| Bounded coefficient selection | Experimental | A 0--1 MILP covers every single-operation substitution in one explicit finite scope. |
+| General lossy coefficient selection | Not implemented | Requires an explicit distortion or soundness theorem beyond the bounded mutation catalogue. |
 | Cryptographic authentication | Not implemented | Requires a standard hash or MAC over a domain-separated canonical encoding. |
 | Circuit semantics | Not implemented | Requires basis-state permutation/unitary semantics for the current fixed-width gates. |
 | Growing-register semantics | Not implemented | A zero-ancilla allocation map should be proved isometric (`V†V = I`), not unitary onto the larger space. |
@@ -72,6 +73,22 @@ LDPC syndrome is a secure circuit fingerprint.
 Each arrow needs its own refinement or security theorem. In particular, error
 correction, transform invertibility, semantic equivalence, and collision
 resistance are four different properties.
+
+## Bounded optimization experiment
+
+[`experiments/optimize_fingerprint.py`](experiments/optimize_fingerprint.py)
+uses mixed-integer optimization to minimize retained coordinates subject to
+mutation-detection constraints. In the default four-qubit, four-operation
+scope, it covers all 3,120 single-substitution classes in both transform
+families using 6 of 32 coordinates. The script then verifies every constraint
+again from exact integer transform values. A second MILP computes the nearest
+collision in the operation-block Hamming graph. For the documented baseline,
+the exact radius is 2: every single edit is detected, and an explicit two-edit
+collision is exhibited. This imports the useful robustness-radius pattern from
+[`kemeny-dp-posets`](https://github.com/rbajaj5/kemeny-dp-posets) without
+equating rank aggregation with circuit certification. See
+[`experiments/README.md`](experiments/README.md) for the formulation, selected
+coordinates, and limitations.
 
 ## Mathematical provenance
 
