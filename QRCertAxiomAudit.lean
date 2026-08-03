@@ -1,4 +1,6 @@
 import QRCertBlueprint
+import ReflectionKernel
+import RamseyCertificate
 
 /-!
 Run with:
@@ -20,3 +22,9 @@ separate from the library build so that audit output remains visible in CI.
 #print axioms QRCert.Blueprint.costExtractedModel_sound
 #print axioms QRCert.Blueprint.costExtractedModel_success_agrees
 #print axioms QRCert.Blueprint.deserializeSpec_implies_cost_success
+#print axioms QRCert.Reflection.verifyResourceClaim_sound
+#print axioms QRCert.Reflection.validCCX_claim_sound
+#print axioms QRCert.Ramsey.mem_words_iff
+#print axioms QRCert.Ramsey.noMonochromaticCliqueB_refines
+#print axioms QRCert.Ramsey.verify_sound
+#print axioms QRCert.Ramsey.cycle5_certificate_sound
