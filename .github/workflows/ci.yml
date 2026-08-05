@@ -14,8 +14,8 @@ jobs:
   lean:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: leanprover/lean-action@v1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: leanprover/lean-action@38fbc41a8c28c4cbaec22d7f7de508ec2e7c0dd9 # v1.5.0
         with:
           build: true
           build-args: --wfail
@@ -30,8 +30,8 @@ jobs:
   python:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.11'
       - name: Compile tools
@@ -43,3 +43,12 @@ jobs:
           cmp /tmp/c5.json /tmp/c5-roundtrip.json
           python tools/ramsey_gpu.py --check examples/r55-42.json --device cpu --output /tmp/r55.json
           cmp examples/r55-42.json /tmp/r55.json
+
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Test the extraction-oriented Rust core
+        run: cargo test --locked --manifest-path rust/qrcert-core/Cargo.toml
+      - name: Enforce Rust formatting
+        run: cargo fmt --manifest-path rust/qrcert-core/Cargo.toml -- --check

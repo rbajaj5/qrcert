@@ -21,13 +21,25 @@ from dataclasses import dataclass
 from typing import Any, Callable, Sequence, TypeVar
 
 try:
-    from .ramsey_gpu import Backend, clique_masks, cpu_scores, gpu_scores
+    from .ramsey_gpu import (
+        Backend,
+        clique_masks,
+        compile_gpu_score_plan,
+        cpu_scores,
+        gpu_scores,
+    )
 except ImportError:
     # Support direct execution: ``python tools/benchmark_ramsey.py``.
-    from ramsey_gpu import Backend, clique_masks, cpu_scores, gpu_scores
+    from ramsey_gpu import (
+        Backend,
+        clique_masks,
+        compile_gpu_score_plan,
+        cpu_scores,
+        gpu_scores,
+    )
 
 
-FORMAT = "QRCert-Ramsey-Benchmark-v1"
+FORMAT = "QRCert-Ramsey-Benchmark-v2"
 T = TypeVar("T")
 
 
@@ -125,6 +137,13 @@ def benchmark(args: argparse.Namespace) -> dict[str, Any]:
     red_masks = clique_masks(args.n, args.k)
     # The diagonal case uses the same clique masks for both colours.
     gpu_candidates = candidates_to_cuda(candidates, edge_count, torch, device)
+    gpu_plan = compile_gpu_score_plan(
+        n=args.n,
+        red_clique=args.k,
+        blue_clique=args.k,
+        backend=backend,
+        clique_chunk=args.clique_chunk,
+    )
 
     # Check that tensor construction did not change a single candidate bit.
     tensor_rows = gpu_candidates.to(device="cpu", dtype=torch.uint8).tolist()
@@ -145,6 +164,7 @@ def benchmark(args: argparse.Namespace) -> dict[str, Any]:
             blue_clique=args.k,
             backend=backend,
             clique_chunk=args.clique_chunk,
+            plan=gpu_plan,
         )
 
     # Warm both paths so imports, CUDA context creation, and allocator startup do
@@ -187,6 +207,7 @@ def benchmark(args: argparse.Namespace) -> dict[str, Any]:
         "repeats": args.repeats,
         "warmups": args.warmups,
         "clique_chunk": args.clique_chunk,
+        "device_plan_precompiled": True,
         "torch": str(torch.__version__),
         "cuda": str(torch.version.cuda),
         "device": torch.cuda.get_device_name(device),
