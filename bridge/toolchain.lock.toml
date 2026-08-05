@@ -1,0 +1,28 @@
+schema = 1
+
+# Aeneas and the Charon revision selected by that exact Aeneas commit.
+aeneas_revision = "daa85d7e89400fa978be83fedbc7e475a83f0889"
+aeneas_release = "nightly-2026.08.03-daa85d7"
+charon_revision = "340b1af4df92608d0911fc2ba26eef3fd3a30ab4"
+
+# Compiler/prover pins used by the compatible upstream toolchain.
+rust_toolchain = "nightly-2026-06-01"
+lean_toolchain = "leanprover/lean4:v4.31.0"
+charon_preset = "aeneas"
+mir_level = "promoted"
+
+# Official release artifacts used by bridge/extract.sh on Linux x86_64.
+aeneas_linux_x86_64_sha256 = "a7f89a3359a25606162077e80c982096d7741135eaa5d35d94853269c49f6f83"
+aeneas_lean_linux_x86_64_sha256 = "b91ef21bf70bf06487ddb84a65b6f88e31968ac32304b3b2c72ebfbba72c20e3"
+aeneas_lake_manifest_sha256 = "7d527c1294d4a157d9b4266728124893d3324db4fee7b21a34f1595c7bc61de5"
+aeneas_binary_sha256 = "0fdbb335681b78534f0c99696637addb13e6aaea82fc4b912d4fe0936945c0c5"
+charon_binary_sha256 = "d65cf6481b0bded95ec48c2c3dfe65e2a2617e6b4b80ab3f537a286b29a4adb8"
+charon_driver_binary_sha256 = "5509a4f0ae8e85df404a63aaf2db5ec8c6803085bb9dafa820fd906fd2b4587d"
+aeneas_elab_original_sha256 = "9bbf2d34a8627e9de45397af3e85eeead9313d10a549a3580d33915bfee9aaad"
+aeneas_elab_patched_sha256 = "ca8cb56a17090d81557c83da7718c69e75b963db31a9108299e688368f549aef"
+
+# Repository-owned bridge inputs.  The extraction gate checks these before
+# modifying or compiling generated output.
+aeneas_patch_sha256 = "0bc83ac747a374cc2c05470c510aea1a7ca810dc24dab4f11d56a1e4d62127f6"
+normalizer_sha256 = "343eef541951d358d3624c7e791aa815bdc803227880b32980d0b2ed4ac0bf75"
+clauses_sha256 = "71dc4506f11df626474e5ca0f7a9ed236c81cfa2faf05bf83127cd055f0b9b72"

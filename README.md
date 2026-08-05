@@ -1,13 +1,27 @@
-# QRCert Lean decoder, fingerprints, and reflected certificates
+# QRCert verified checker and certificate blueprint
 
-This is a compiling Lean 4 proof artifact for three deliberately narrow QRCert
-milestones:
+This is a compiling Lean 4 and safe-Rust research artifact for six deliberately
+narrow QRCert milestones:
 
-1. a checked decoder and finite-word cost model for a tiny circuit format; and
+1. a checked decoder and finite-word cost model for a tiny circuit format;
 2. exact integer Haar and Walsh--Hadamard transforms for structural circuit
-   fingerprints; and
+   fingerprints;
 3. reflected resource and Ramsey certificates with an untrusted GPU search
-   boundary.
+   boundary;
+4. a reflected custody-authorization state machine with an explicit
+   authentication interface; and
+5. an assured-autonomy payment model that checks an arbitrary agent-supplied
+   proposal against authenticated mandates, exact quote binding, replay and
+   cumulative-budget state, and optional human escalation; and
+6. an extraction-oriented, dependency-free Rust implementation plus pinned
+   Charon/Aeneas bridge configuration.
+
+A prospective application direction is agentic payments: useful agents could
+search, negotiate, and assemble checkout proposals, while a small verified
+authorization model determines which exact requests may advance budget state.
+This is a research and product hypothesis, not market validation or a claim of
+production security. The repository proves model-level containment properties;
+it does not yet connect the model to a payment rail or signer.
 
 The fixed-byte circuit format has:
 
@@ -91,10 +105,66 @@ python tools/benchmark_ramsey.py
 
 PyTorch is optional for certificate search and checking; the first two
 commands have a deterministic standard-library CPU fallback. The benchmark
-requires CUDA-enabled PyTorch and rejects any CPU/GPU score disagreement.
+requires CUDA-enabled PyTorch and rejects any CPU/GPU score disagreement. Its
+reusable gather plan materializes immutable clique-edge index tensors once per
+workload. On the recorded RTX 5070 Ti batch workload this reduced repeated GPU
+scoring from 44.4 ms to 10.5 ms (4.23x); the 67.0 ms setup cost is recovered
+after about two batches.
 See `OPEN-MATH-APPLICATIONS.md` for measured results, precise trust boundaries,
 and applications to Ramsey numbers, Hadamard matrices, bounded Collatz
 verification, and the companion Kemeny-poset work.
+
+## Custody authorization example
+
+`CustodyPolicy.lean` is a concrete non-quantum application of the reflected
+checker pattern. It proves that an accepted request has the right chain, key
+epoch, replay nonce, amount and destination; every counted approval binds all
+request fields; signer identifiers are authorized and distinct; the attainable
+threshold is met; and the state transition increments only the nonce.
+
+Approval authenticity is supplied through a proof-carrying
+`ApprovalAuthenticator`. A deployment must instantiate it with a separately
+verified signature, threshold-share, or attestation checker. The module does
+not claim key secrecy, signature unforgeability, MPC security, enclave
+isolation, or side-channel resistance. See
+`SIGNATURE-CUSTODY-APPLICATIONS.md`.
+
+## Assured agentic payments
+
+`AgenticPayments.lean` applies the same reflected-checker pattern at a
+money-moving boundary. Separate proof-carrying authenticators cover the user's
+mandate, merchant quote, and any required human approvals. The checker binds
+the agent, merchant, currency, amount, cart and checkout-state digests, policy
+and key epoch, trusted time, and next nonce. It enforces per-payment and
+cumulative limits, and its successful functional transition returns one
+next-state value that advances the nonce and adds the accepted amount to the
+accounted `spent` total. Durable and concurrent atomicity remain implementation
+obligations.
+
+The model places planners outside the trusted boundary; they may be
+prompt-injected, colluding, or simply wrong. Its theorem is about what the
+abstract authorization function can accept, not what agents understand or what
+a deployed gateway will necessarily enforce. The initial model is
+protocol-neutral; AP2 is the first candidate for mandate semantics, while ACP,
+x402, and MPP are candidate checkout or settlement adapters. None is implemented
+here. See `AGENTIC-PAYMENTS.md` for the architecture, protocol mapping, exact
+trust boundary, and roadmap.
+
+## Rust extraction candidate
+
+`rust/qrcert-checker` implements the fixed-byte decoder and resource endpoint
+in `no_std`, dependency-free, safe Rust with fixed-capacity storage and
+fail-closed checked arithmetic. Its exhaustive bounded regression test compares
+335,923 byte strings with an independent reference implementation.
+
+The pinned Linux x86_64 bridge gate produces LLBC and generates compiling Lean
+definitions without opaque external-function templates. That gate includes a
+local Aeneas elaborator patch, a fail-closed normalization pass, and the two
+handwritten termination measures in `bridge/Clauses.lean`; all remain inside
+the untrusted translation boundary. GitHub Actions reproduces the same cold
+bridge run in a separate job. The generated-code-to-blueprint refinement
+theorem is still open, and successful extraction alone is not counted as
+semantic preservation. See `RUST-MIR-BRIDGE.md`.
 
 ## Build and audit
 
@@ -103,7 +173,14 @@ The pinned toolchain is Lean `4.31.0`, matching the reviewed hax/Aeneas integrat
 ```text
 lake build
 lake env lean -E warning QRCertAxiomAudit.lean
+cd rust/qrcert-checker
+cargo fmt --check
+cargo clippy --all-targets --all-features -- -D warnings
+cargo test
 ```
+
+The separate pinned bridge gate is reproducible on Linux x86_64 with
+`bash bridge/extract.sh` and runs as its own GitHub Actions job.
 
 The original decoder blueprint was also compiled successfully with Lean
 `4.33.0-rc1`. `#print axioms` reports only Lean's standard `propext`,
@@ -121,7 +198,9 @@ FC43C4A278C6BAE25DEEDCAAF21CBE9B3C8C17F26F827A8E89B78D5B2CA51DDC
 This is a proof blueprint, not the completed QRCert system:
 
 - `U32Model` is a transparent, Nat-backed model of checked 32-bit addition. It is not claimed to be literal Aeneas output.
-- The Boolean parser is implementation-shaped Lean, not yet extracted Rust.
+- The Rust parser now extracts through the pinned Charon/Aeneas versions, but
+  its generated functions do not yet have the required Lean refinement proof
+  against `QRCertBlueprint.lean`.
 - Every operation costs one; the production frozen resource vector still needs gate-specific weights and versioning.
 - The format uses one-byte headers and operands. A multi-byte/variable-length format needs its own minimal-encoding and canonicality proofs.
 - The committed 42-vertex Ramsey JSON is exactly checked by Python and CUDA,
@@ -135,6 +214,10 @@ This is a proof blueprint, not the completed QRCert system:
   therefore unitary. A future register-allocation operation would instead be
   modeled as an isometry into a larger state space; neither semantic layer is
   implemented here.
-- Circuit semantics, semantic certificates, authenticated hashing, the
-  Rust/Charon/Aeneas bridge, rustc/RISC-V correspondence, SP1, and the ZK
+- Circuit semantics, semantic certificates, authenticated hashing,
+  generated-Rust refinement, rustc/RISC-V correspondence, SP1, and the ZK
   composition theorem remain separate obligations.
+- The payment module is a protocol-neutral authorization model, not yet an AP2,
+  ACP, x402, MPP, card-network, or banking wire implementation. Cryptographic
+  authentication, trusted time, atomic storage, signer isolation, settlement,
+  refunds, and distributed consensus remain explicit external assumptions.

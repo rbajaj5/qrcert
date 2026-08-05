@@ -7,4 +7,4 @@ package qrcertBlueprint where
 @[default_target]
 lean_lib QRCertBlueprint where
   roots := #[`QRCertBlueprint, `QRCertWaveletFingerprint,
-    `ReflectionKernel, `RamseyCertificate]
+    `ReflectionKernel, `RamseyCertificate, `CustodyPolicy, `AgenticPayments]

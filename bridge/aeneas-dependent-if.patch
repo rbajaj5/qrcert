@@ -1,0 +1,43 @@
+diff --git a/backends/lean/Aeneas/Do/Elab.lean b/backends/lean/Aeneas/Do/Elab.lean
+index f717e4b..e63fff9 100644
+--- a/backends/lean/Aeneas/Do/Elab.lean
++++ b/backends/lean/Aeneas/Do/Elab.lean
+@@ -346,6 +346,9 @@ partial def elabDoElem (elem : DoElem) (rest : List DoElem) : ElabM Expr := do
+   | `(doElem| let $pat:term ← $rhs)  => elabDoLetArrowPat pat rhs rest
+   | `(doElem| let $x:ident $[: $ty?]? := $rhs) => elabDoLetId x ty? rhs rest
+   | `(doElem| let $pat:term := $rhs)  => elabDoLetPat pat rhs rest
++  | `(doElem| if $h:ident : $cond:term then $thenSeq:doSeq
++              else $elseSeq:doSeq) =>
++    elabDoIfDep h cond thenSeq elseSeq rest
+   | `(doElem| if $cond:term then $thenSeq:doSeq
+               $[else if $econds:term then $eseqs:doSeq]*
+               else $elseSeq:doSeq) =>
+@@ -482,6 +485,27 @@ partial def elabDoIfChain (branches : Array (Term × TSyntax ``doSeq))
+       return result
+   elabMonadicAsDoElem elabAtType rest
+-
++
++/-- Elaborate a dependent `if h : cond then ... else ...` as a `dite`, making
++    the proof (or refutation) named by `h` available while elaborating each
++    branch. This is required by generated well-founded recursion, whose
++    decreases proof consumes the loop-condition hypothesis. -/
++partial def elabDoIfDep (h : Ident) (cond : Term)
++    (thenSeq elseSeq : TSyntax ``doSeq) (rest : List DoElem) : ElabM Expr := do
++  let elabAtType (ty : Expr) : ElabM Expr := do
++    let some α := ty.getAppArgs[0]?
++      | throwError "elabDoIfDep: expected monadic type, got{indentExpr ty}"
++    withReader (fun ctx => { ctx with expectedAlpha := α }) do
++      let propExpr ← elabIfCondition cond
++      let thenFn ← ElabM.withLocalDeclD h.getId propExpr fun proof => do
++        Term.addLocalVarInfo h proof
++        mkLambdaFVars #[proof] (← elabDoSeqCore (← getDoElems thenSeq))
++      let notProp ← mkAppM ``Not #[propExpr]
++      let elseFn ← ElabM.withLocalDeclD h.getId notProp fun proof => do
++        Term.addLocalVarInfo h proof
++        mkLambdaFVars #[proof] (← elabDoSeqCore (← getDoElems elseSeq))
++      mkAppM ``dite #[propExpr, thenFn, elseFn]
++  elabMonadicAsDoElem elabAtType rest
++
+ /-- Elaborate a `match`. Drives Lean's match elaborator with `_` in each arm
+     body, then fills the resulting per-arm mvars by elaborating the original
+     `doSeq`s directly in the mvar's local context -/

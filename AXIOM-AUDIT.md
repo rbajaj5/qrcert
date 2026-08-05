@@ -1,10 +1,10 @@
 # QRCert blueprint audit
 
-Audit date: August 3, 2026.
+Audit date: August 5, 2026.
 
 ## Build gates
 
-- All four library roots compiled under Lean `4.31.0` with warnings treated
+- All six library roots compiled under Lean `4.31.0` with warnings treated
   as errors.
 - The original `QRCertBlueprint.lean` was also compiled under Lean
   `4.33.0-rc1` with warnings treated as errors.
@@ -14,7 +14,9 @@ Audit date: August 3, 2026.
 - `QRCertWaveletFingerprint.lean` SHA-256: `30C213FED14E428E19464E69D55D4CE9510290ED4B5A1663782D587B2F137261`.
 - `ReflectionKernel.lean` SHA-256: `4858A7D05BFFD966B7EC89271193D4161558D33963BDBE4DA672EC746AF7BC70`.
 - `RamseyCertificate.lean` SHA-256: `EF3BEB937A4DD8C34964D2A218DDBF9A4E869B505A3C6131AA7FC2BF2D77FC54`.
-- All four modules are included in the pinned Lake build and audit.
+- `CustodyPolicy.lean` SHA-256: `621A80265D2A04EEC6C634F08C195481204E3C547BDB93DDD5CC05355DF9930F`.
+- `AgenticPayments.lean` SHA-256: `495C8CB443D13361CAD06E88854FB5256CBDF4C27BB07A6622F7D569336E29CD`.
+- All six modules are included in the pinned Lake build and audit.
 
 ## Kernel axiom report
 
@@ -31,8 +33,12 @@ Audit date: August 3, 2026.
 | Haar reconstruction and injectivity | `propext`, `Quot.sound` |
 | Walsh injectivity and energy scaling | `propext`, `Quot.sound` |
 | operation-block fingerprint injectivity | `propext`, `Classical.choice`, `Quot.sound` |
+| custody authentication, authorization, and state transition | `propext` or `propext`, `Quot.sound` |
+| agentic-payment authentication, authorization, state transition, and budget preservation | `propext` or `propext`, `Quot.sound` |
 
 These are standard Lean axioms used through library/tactic proofs. No
 project-defined axiom appears in the audited dependency closure.
 `QRCertAxiomAudit.lean` lists every theorem checked so CI can reproduce the
-exact report.
+exact report. This is an explicit theorem list and a human-reviewed report, not
+an automatic allowlist for every declaration that could later be added to the
+repository.
