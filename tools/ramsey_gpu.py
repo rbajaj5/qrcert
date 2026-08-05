@@ -136,6 +136,18 @@ class SearchResult:
     best_score: int | None
 
 
+@dataclass(frozen=True)
+class GpuScorePlan:
+    """Device-resident clique indices reusable across candidate batches."""
+
+    n: int
+    red_clique: int
+    blue_clique: int
+    clique_chunk: int
+    red_indices: tuple[Any, ...]
+    blue_indices: tuple[Any, ...]
+
+
 def all_edges(n: int) -> tuple[tuple[int, int], ...]:
     return tuple(itertools.combinations(range(n), 2))
 
@@ -241,6 +253,70 @@ def clique_edge_rows(n: int, size: int) -> list[list[int]]:
     ]
 
 
+def verify_clique_index_plan(n: int, size: int) -> int:
+    """Check that tensor rows and exact integer masks encode the same scopes."""
+
+    rows = clique_edge_rows(n, size)
+    masks = clique_masks(n, size)
+    expected_rows = math.comb(n, size) if size <= n else 0
+    expected_width = math.comb(size, 2)
+    if len(rows) != expected_rows or len(masks) != expected_rows:
+        raise AssertionError("clique-plan row count is inconsistent")
+
+    checks = 2
+    for row, mask in zip(rows, masks, strict=True):
+        if len(row) != expected_width:
+            raise AssertionError("clique-plan row has the wrong width")
+        if row != sorted(set(row)):
+            raise AssertionError("clique-plan row is not strictly increasing")
+        reconstructed = sum(1 << edge for edge in row)
+        if reconstructed != mask:
+            raise AssertionError("tensor row and exact bitmask disagree")
+        checks += 3
+    return checks
+
+
+def compile_gpu_score_plan(
+    *,
+    n: int,
+    red_clique: int,
+    blue_clique: int,
+    backend: Backend,
+    clique_chunk: int,
+) -> GpuScorePlan:
+    """Materialize canonical clique scopes on the selected CUDA device once."""
+
+    torch = backend.torch
+    if torch is None:
+        raise RuntimeError("compile_gpu_score_plan requires a CUDA backend")
+    if clique_chunk < 1:
+        raise ValueError("clique_chunk must be positive")
+
+    def compile_size(size: int) -> tuple[Any, ...]:
+        rows = clique_edge_rows(n, size)
+        return tuple(
+            torch.tensor(
+                rows[start : start + clique_chunk],
+                dtype=torch.int64,
+                device=backend.device,
+            )
+            for start in range(0, len(rows), clique_chunk)
+        )
+
+    red_indices = compile_size(red_clique)
+    blue_indices = (
+        red_indices if blue_clique == red_clique else compile_size(blue_clique)
+    )
+    return GpuScorePlan(
+        n=n,
+        red_clique=red_clique,
+        blue_clique=blue_clique,
+        clique_chunk=clique_chunk,
+        red_indices=red_indices,
+        blue_indices=blue_indices,
+    )
+
+
 def gpu_scores(
     candidates: Any,
     *,
@@ -249,22 +325,35 @@ def gpu_scores(
     blue_clique: int,
     backend: Backend,
     clique_chunk: int,
+    plan: GpuScorePlan | None = None,
 ) -> Any:
     """Count violations for a ``[batch, edge]`` CUDA boolean tensor."""
 
     torch = backend.torch
     if torch is None:
         raise RuntimeError("gpu_scores requires a CUDA backend")
+    if plan is None:
+        plan = compile_gpu_score_plan(
+            n=n,
+            red_clique=red_clique,
+            blue_clique=blue_clique,
+            backend=backend,
+            clique_chunk=clique_chunk,
+        )
+    elif (
+        plan.n != n
+        or plan.red_clique != red_clique
+        or plan.blue_clique != blue_clique
+        or plan.clique_chunk != clique_chunk
+    ):
+        raise ValueError("GPU score plan does not match the scoring request")
     scores = torch.zeros(candidates.shape[0], dtype=torch.int32, device=backend.device)
 
-    for size, colour_is_red in ((red_clique, True), (blue_clique, False)):
-        rows = clique_edge_rows(n, size)
-        for start in range(0, len(rows), clique_chunk):
-            index = torch.tensor(
-                rows[start : start + clique_chunk],
-                dtype=torch.int64,
-                device=backend.device,
-            )
+    for indices, colour_is_red in (
+        (plan.red_indices, True),
+        (plan.blue_indices, False),
+    ):
+        for index in indices:
             selected = candidates[:, index]
             if not colour_is_red:
                 selected = ~selected
@@ -345,6 +434,13 @@ def search_cuda(
     generator.manual_seed(seed)
     edge_count = math.comb(n, 2)
     best_score: int | None = None
+    plan = compile_gpu_score_plan(
+        n=n,
+        red_clique=red_clique,
+        blue_clique=blue_clique,
+        backend=backend,
+        clique_chunk=clique_chunk,
+    )
 
     for batch_index in range(1, batches + 1):
         candidates = torch.randint(
@@ -362,6 +458,7 @@ def search_cuda(
             blue_clique=blue_clique,
             backend=backend,
             clique_chunk=clique_chunk,
+            plan=plan,
         )
         minimum = int(scores.min().item())
         best_score = minimum if best_score is None else min(best_score, minimum)
@@ -467,6 +564,11 @@ def c5_certificate() -> Certificate:
 
 
 def run_self_test(backend: Backend, clique_chunk: int) -> Certificate:
+    plan_checks = sum(
+        verify_clique_index_plan(n, size)
+        for n in range(2, 9)
+        for size in range(2, n + 1)
+    )
     certificate = c5_certificate()
     if first_violation(certificate) is not None:
         raise AssertionError("C5 unexpectedly has a monochromatic triangle")
@@ -483,7 +585,8 @@ def run_self_test(backend: Backend, clique_chunk: int) -> Certificate:
         raise AssertionError("exact checker failed to reject an all-red K3")
 
     print(
-        "[ramsey_gpu] self-test=pass certificate=C5 conclusion=R(3,3)>5",
+        f"[ramsey_gpu] self-test=pass index_checks={plan_checks} "
+        "certificate=C5 conclusion=R(3,3)>5",
         file=sys.stderr,
     )
     return certificate

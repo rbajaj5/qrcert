@@ -92,13 +92,24 @@ python tools/benchmark_ramsey.py
 PyTorch is optional for certificate search and checking; the first two
 commands have a deterministic standard-library CPU fallback. The benchmark
 requires CUDA-enabled PyTorch and rejects any CPU/GPU score disagreement.
+Clique-index tensors are compiled onto the selected device once and reused
+across search batches; this optimization changes no certificate semantics and
+remains outside the trusted base.
 See `OPEN-MATH-APPLICATIONS.md` for measured results, precise trust boundaries,
 and applications to Ramsey numbers, Hadamard matrices, bounded Collatz
 verification, and the companion Kemeny-poset work.
 
+[`tools/RAMSEY-CSP-INDEXING.md`](tools/RAMSEY-CSP-INDEXING.md) gives the
+finite-Boolean-CSP semantics of the CUDA gather-and-reduce scorer. Its
+incidence-table self-test is standard-library code; GPU scoring remains
+untrusted acceleration and is still compared exactly with the CPU path.
+
 ## Build and audit
 
-The pinned toolchain is Lean `4.31.0`, matching the reviewed hax/Aeneas integration pin.
+The pinned toolchain is Lean `4.31.0`, matching the current Aeneas Lean backend.
+[`TOOLCHAIN-SNAPSHOT.md`](TOOLCHAIN-SNAPSHOT.md) records the audited Aeneas,
+Charon, Charon-Rust, Lean, GPU, and alternative-verifier boundary. A newer
+upstream tag is not silently treated as compatible.
 
 ```text
 lake build
@@ -121,7 +132,10 @@ FC43C4A278C6BAE25DEEDCAAF21CBE9B3C8C17F26F827A8E89B78D5B2CA51DDC
 This is a proof blueprint, not the completed QRCert system:
 
 - `U32Model` is a transparent, Nat-backed model of checked 32-bit addition. It is not claimed to be literal Aeneas output.
-- The Boolean parser is implementation-shaped Lean, not yet extracted Rust.
+- [`rust/qrcert-core`](rust/qrcert-core/) is now an executable,
+  extraction-oriented implementation of the Boolean parser and cost loop, but
+  generated Lean and its refinement theorem are not yet committed. It must not
+  be described as an already closed Rust/Charon/Aeneas bridge.
 - Every operation costs one; the production frozen resource vector still needs gate-specific weights and versioning.
 - The format uses one-byte headers and operands. A multi-byte/variable-length format needs its own minimal-encoding and canonicality proofs.
 - The committed 42-vertex Ramsey JSON is exactly checked by Python and CUDA,
@@ -135,6 +149,7 @@ This is a proof blueprint, not the completed QRCert system:
   therefore unitary. A future register-allocation operation would instead be
   modeled as an isometry into a larger state space; neither semantic layer is
   implemented here.
-- Circuit semantics, semantic certificates, authenticated hashing, the
-  Rust/Charon/Aeneas bridge, rustc/RISC-V correspondence, SP1, and the ZK
+- Circuit semantics, semantic certificates, authenticated hashing, completion
+  of the Rust/Charon/Aeneas refinement bridge, rustc/RISC-V correspondence,
+  SP1, and the ZK
   composition theorem remain separate obligations.

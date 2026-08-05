@@ -48,3 +48,9 @@ large 42-vertex instance are not yet evaluated end to end inside Lean, so the
 `R(5,5)` file is an exact CPU/CUDA regression certificate, not yet a
 kernel-checked theorem artifact. GPU search performance is always outside the
 theorem's trust boundary.
+
+The exact finite-CSP interpretation, canonical clique-to-edge incidence
+table, tensor gather semantics, and memory bound are documented in
+[`RAMSEY-CSP-INDEXING.md`](RAMSEY-CSP-INDEXING.md). The standard-library
+self-test reconstructs every small incidence row as an integer mask before
+any optional CUDA work is accepted.

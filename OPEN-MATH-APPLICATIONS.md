@@ -57,8 +57,12 @@ dominated. The result is therefore specific and useful: GPU acceleration helps
 batched search, not the final small trusted verification step.
 
 These are one-machine engineering measurements, not mathematical claims or a
-general performance guarantee. `tools/benchmark_ramsey.py` reproduces the
-batch comparison and rejects any CPU/GPU score mismatch.
+general performance guarantee. The committed receipt uses benchmark format
+v1, in which clique-index tensors were rebuilt in every timed call. The current
+v2 benchmark precompiles those device tensors once, as the repeated-batch
+search does; it reproduces the same candidate batch and exact score comparison,
+but its timing protocol is intentionally different. Every version rejects a
+CPU/GPU score mismatch.
 
 ## Other open-problem targets
 
