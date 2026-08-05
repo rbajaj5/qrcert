@@ -2,6 +2,8 @@ import QRCertBlueprint
 import QRCertWaveletFingerprint
 import ReflectionKernel
 import RamseyCertificate
+import CustodyPolicy
+import AgenticPayments
 
 /-!
 Run with:
@@ -38,3 +40,17 @@ separate from the library build so that audit output remains visible in CI.
 #print axioms QRCert.Wavelet.walshHadamard_energy
 #print axioms QRCert.Wavelet.opBlockFingerprint_injective
 #print axioms QRCert.Wavelet.compactOpBlockFingerprint_injective
+
+#print axioms QRCert.Custody.Digest256.toWords_injective
+#print axioms QRCert.Custody.checkApproval_eq_true_iff
+#print axioms QRCert.Custody.checkAuthorization_eq_true_iff
+#print axioms QRCert.Custody.checkAuthorization_sound
+#print axioms QRCert.Custody.authorizeAndAdvance_eq_some_iff
+#print axioms QRCert.Custody.authorizeAndAdvance_sound
+#print axioms QRCert.Custody.example_authorization_sound
+
+#print axioms QRCert.AgenticPayments.checkHumanApproval_eq_true_iff
+#print axioms QRCert.AgenticPayments.checkPayment_eq_true_iff
+#print axioms QRCert.AgenticPayments.authorizeAndAdvance_eq_some_iff
+#print axioms QRCert.AgenticPayments.authorizeAndAdvance_sound
+#print axioms QRCert.AgenticPayments.accepted_preserves_cumulative_budget

@@ -4,7 +4,9 @@
 The benchmark generates one deterministic batch of colourings, represents that
 same batch as Python integer bitsets and as a CUDA boolean tensor, then compares
 ``cpu_scores`` with ``gpu_scores`` exactly.  CUDA is warmed up and synchronized
-around every timed call.  A disagreement is an error, never a benchmark result.
+around every timed call.  The immutable CUDA gather plan is prepared once before
+warm-up, matching its use across repeated search batches.  A disagreement is an
+error, never a benchmark result.
 """
 
 from __future__ import annotations
@@ -21,10 +23,22 @@ from dataclasses import dataclass
 from typing import Any, Callable, Sequence, TypeVar
 
 try:
-    from .ramsey_gpu import Backend, clique_masks, cpu_scores, gpu_scores
+    from .ramsey_gpu import (
+        Backend,
+        clique_masks,
+        cpu_scores,
+        gpu_scores,
+        prepare_cuda_gather_plan,
+    )
 except ImportError:
     # Support direct execution: ``python tools/benchmark_ramsey.py``.
-    from ramsey_gpu import Backend, clique_masks, cpu_scores, gpu_scores
+    from ramsey_gpu import (
+        Backend,
+        clique_masks,
+        cpu_scores,
+        gpu_scores,
+        prepare_cuda_gather_plan,
+    )
 
 
 FORMAT = "QRCert-Ramsey-Benchmark-v1"
@@ -125,6 +139,13 @@ def benchmark(args: argparse.Namespace) -> dict[str, Any]:
     red_masks = clique_masks(args.n, args.k)
     # The diagonal case uses the same clique masks for both colours.
     gpu_candidates = candidates_to_cuda(candidates, edge_count, torch, device)
+    gather_plan = prepare_cuda_gather_plan(
+        n=args.n,
+        red_clique=args.k,
+        blue_clique=args.k,
+        backend=backend,
+        clique_chunk=args.clique_chunk,
+    )
 
     # Check that tensor construction did not change a single candidate bit.
     tensor_rows = gpu_candidates.to(device="cpu", dtype=torch.uint8).tolist()
@@ -145,6 +166,7 @@ def benchmark(args: argparse.Namespace) -> dict[str, Any]:
             blue_clique=args.k,
             backend=backend,
             clique_chunk=args.clique_chunk,
+            plan=gather_plan,
         )
 
     # Warm both paths so imports, CUDA context creation, and allocator startup do

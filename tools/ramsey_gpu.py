@@ -136,6 +136,26 @@ class SearchResult:
     best_score: int | None
 
 
+@dataclass(frozen=True)
+class CudaGatherPlan:
+    """Read-only CUDA indices for one Ramsey scoring workload.
+
+    The tuple structure prevents callers from adding, removing, or reordering
+    chunks after construction.  PyTorch tensors are mutable objects, so the
+    tensors remain an internal read-only convention; ``gpu_scores`` never
+    modifies them.
+    """
+
+    n: int
+    red_clique: int
+    blue_clique: int
+    clique_chunk: int
+    edge_count: int
+    device: str
+    red_index_chunks: tuple[Any, ...]
+    blue_index_chunks: tuple[Any, ...]
+
+
 def all_edges(n: int) -> tuple[tuple[int, int], ...]:
     return tuple(itertools.combinations(range(n), 2))
 
@@ -241,6 +261,109 @@ def clique_edge_rows(n: int, size: int) -> list[list[int]]:
     ]
 
 
+def clique_edge_chunks(
+    n: int, size: int, clique_chunk: int
+) -> tuple[tuple[tuple[int, ...], ...], ...]:
+    """Return the immutable host-side chunk layout used by a CUDA plan."""
+
+    if clique_chunk < 1:
+        raise ValueError("clique_chunk must be positive")
+    rows = clique_edge_rows(n, size)
+    return tuple(
+        tuple(tuple(row) for row in rows[start : start + clique_chunk])
+        for start in range(0, len(rows), clique_chunk)
+    )
+
+
+def prepare_cuda_gather_plan(
+    *,
+    n: int,
+    red_clique: int,
+    blue_clique: int,
+    backend: Backend,
+    clique_chunk: int,
+) -> CudaGatherPlan:
+    """Materialize reusable clique-index tensors for one CUDA workload.
+
+    Equal red and blue clique sizes share the exact same tuple of CUDA tensors,
+    avoiding duplicate construction and device memory.  Plan construction is
+    intentionally separate from scoring so a search or benchmark can exclude
+    this one-time setup from every batch.
+    """
+
+    torch = backend.torch
+    if torch is None:
+        raise RuntimeError("prepare_cuda_gather_plan requires a CUDA backend")
+    if n < 1:
+        raise ValueError("n must be positive")
+    if red_clique < 2 or blue_clique < 2:
+        raise ValueError("clique sizes must be at least 2")
+    if clique_chunk < 1:
+        raise ValueError("clique_chunk must be positive")
+
+    requested_device = torch.device(backend.device)
+    if requested_device.type != "cuda":
+        raise ValueError("CUDA gather plans require a CUDA device")
+    device_index = requested_device.index
+    if device_index is None:
+        device_index = torch.cuda.current_device()
+    canonical_device = str(torch.device("cuda", device_index))
+
+    chunks_by_size: dict[int, tuple[Any, ...]] = {}
+    for size in (red_clique, blue_clique):
+        if size in chunks_by_size:
+            continue
+        host_chunks = clique_edge_chunks(n, size, clique_chunk)
+        chunks_by_size[size] = tuple(
+            torch.tensor(chunk, dtype=torch.int64, device=backend.device)
+            for chunk in host_chunks
+        )
+
+    return CudaGatherPlan(
+        n=n,
+        red_clique=red_clique,
+        blue_clique=blue_clique,
+        clique_chunk=clique_chunk,
+        edge_count=math.comb(n, 2),
+        device=canonical_device,
+        red_index_chunks=chunks_by_size[red_clique],
+        blue_index_chunks=chunks_by_size[blue_clique],
+    )
+
+
+def _validate_cuda_gather_plan(
+    plan: CudaGatherPlan,
+    *,
+    candidates: Any,
+    n: int,
+    red_clique: int,
+    blue_clique: int,
+    backend: Backend,
+    clique_chunk: int,
+) -> None:
+    expected = (n, red_clique, blue_clique, clique_chunk)
+    actual = (plan.n, plan.red_clique, plan.blue_clique, plan.clique_chunk)
+    if actual != expected:
+        raise ValueError(
+            "CUDA gather plan does not match "
+            f"(n, red_clique, blue_clique, clique_chunk)={expected}"
+        )
+    if candidates.ndim != 2 or candidates.shape[1] != plan.edge_count:
+        raise ValueError(
+            f"candidates must have shape [batch, {plan.edge_count}]"
+        )
+    torch = backend.torch
+    if torch is None:
+        raise RuntimeError("CUDA gather plan validation requires a CUDA backend")
+    backend_device = torch.device(backend.device)
+    backend_index = backend_device.index
+    if backend_index is None:
+        backend_index = torch.cuda.current_device()
+    canonical_backend_device = str(torch.device("cuda", backend_index))
+    if canonical_backend_device != plan.device or str(candidates.device) != plan.device:
+        raise ValueError("CUDA gather plan, backend, and candidates must share a device")
+
+
 def gpu_scores(
     candidates: Any,
     *,
@@ -249,22 +372,42 @@ def gpu_scores(
     blue_clique: int,
     backend: Backend,
     clique_chunk: int,
+    plan: CudaGatherPlan | None = None,
 ) -> Any:
-    """Count violations for a ``[batch, edge]`` CUDA boolean tensor."""
+    """Count violations for a ``[batch, edge]`` CUDA boolean tensor.
+
+    Passing a prepared ``plan`` avoids rebuilding clique rows and copying index
+    tensors to CUDA on every call.  Omitting it preserves the original public
+    behavior by constructing a one-shot plan.
+    """
 
     torch = backend.torch
     if torch is None:
         raise RuntimeError("gpu_scores requires a CUDA backend")
+    if plan is None:
+        plan = prepare_cuda_gather_plan(
+            n=n,
+            red_clique=red_clique,
+            blue_clique=blue_clique,
+            backend=backend,
+            clique_chunk=clique_chunk,
+        )
+    _validate_cuda_gather_plan(
+        plan,
+        candidates=candidates,
+        n=n,
+        red_clique=red_clique,
+        blue_clique=blue_clique,
+        backend=backend,
+        clique_chunk=clique_chunk,
+    )
     scores = torch.zeros(candidates.shape[0], dtype=torch.int32, device=backend.device)
 
-    for size, colour_is_red in ((red_clique, True), (blue_clique, False)):
-        rows = clique_edge_rows(n, size)
-        for start in range(0, len(rows), clique_chunk):
-            index = torch.tensor(
-                rows[start : start + clique_chunk],
-                dtype=torch.int64,
-                device=backend.device,
-            )
+    for index_chunks, colour_is_red in (
+        (plan.red_index_chunks, True),
+        (plan.blue_index_chunks, False),
+    ):
+        for index in index_chunks:
             selected = candidates[:, index]
             if not colour_is_red:
                 selected = ~selected
@@ -341,6 +484,13 @@ def search_cuda(
     torch = backend.torch
     if torch is None:
         raise RuntimeError("search_cuda requires a CUDA backend")
+    plan = prepare_cuda_gather_plan(
+        n=n,
+        red_clique=red_clique,
+        blue_clique=blue_clique,
+        backend=backend,
+        clique_chunk=clique_chunk,
+    )
     generator = torch.Generator(device=backend.device)
     generator.manual_seed(seed)
     edge_count = math.comb(n, 2)
@@ -362,6 +512,7 @@ def search_cuda(
             blue_clique=blue_clique,
             backend=backend,
             clique_chunk=clique_chunk,
+            plan=plan,
         )
         minimum = int(scores.min().item())
         best_score = minimum if best_score is None else min(best_score, minimum)
